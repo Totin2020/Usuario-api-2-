@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+        }
+        .container {
+            display: flex;
+            justify-content: space-between;
+            max-width: 1000px;
+            margin: auto;
+        }
+        .column {
+            width: 30%;
+            padding: 10px;
+        }
+        .user-list {
+            max-height: 400px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        .user-container {
+            padding: 5px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            width: 90%;
+        }
+        .marked {
+            background-color: red;
+            color: white;
+        }
+        .highlight {
+            background-color: yellow;
+        }
+        button {
+            display: block;
+            margin: 10px auto;
+            padding: 10px;
+            font-size: 14px;
+        }
+        .copied-user {
+            font-size: 16px;
+            font-weight: bold;
+            color: blue;
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h2>Gestión de Usuarios</h2>
+    <div class="container">
+        <div class="column">
+            <button onclick="copyNextUser()">Copiar Siguiente Usuario</button>
+            <p class="copied-user" id="copiedUserDisplay">Último copiado: Ninguno</p>
+            <input type="text" id="newUser" placeholder="Agregar usuario">
+            <button onclick="addUser()">Agregar</button>
+            <input type="text" id="deleteUser" placeholder="Eliminar usuario">
+            <button id="deleteButton" onclick="deleteUser()">Eliminar</button>
+            <input type="text" id="disableUser" placeholder="Deshabilitar usuario">
+            <button onclick="disableUser()">Deshabilitar</button>
+        </div>
+        <div class="column">
+            <h3>Usuarios Activos</h3>
+            <div id="userList" class="user-list"></div>
+        </div>
+        <div class="column">
+            <h3>Usuarios Deshabilitados</h3>
+            <div id="markedUserList" class="user-list"></div>
+        </div>
+    </div>
+    <script>
+        const API_URL = "https://gestor-de-cuentas.onrender.com/users";
+        let lastCopiedUser = null;
+        let copyIndex = 0;
+        let activeUsers = [];
+
+        async function fetchUsers() {
+            const response = await fetch(API_URL);
+            const data = await response.json();
+            activeUsers = data.users.filter(user => !data.markedUsers.includes(user));
+            copyIndex = data.copyIndex || 0;
+            lastCopiedUser = data.lastCopiedUser;
+            renderUsers(data.users, data.markedUsers || []);
+            updateCopiedUserDisplay();
+        }
+
+        async function copyNextUser() {
+            if (activeUsers.length > 0) {
+                lastCopiedUser = activeUsers[copyIndex];
+                navigator.clipboard.writeText(lastCopiedUser);
+                copyIndex = (copyIndex + 1) % activeUsers.length;
+                await fetch(`${API_URL}/setLastCopied`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ lastCopiedUser, copyIndex })
+                });
+                fetchUsers();
+            }
+        }
+
+        async function addUser() {
+            const newUserInput = document.getElementById("newUser");
+            const newUser = newUserInput.value.trim();
+            if (newUser) {
+                await fetch(API_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: newUser })
+                });
+                newUserInput.value = "";
+                fetchUsers();
+            }
+        }
+
+        async function deleteUser() {
+            const deleteUserInput = document.getElementById("deleteUser");
+            const userToDelete = deleteUserInput.value.trim();
+            if (userToDelete) {
+                await fetch(`${API_URL}/${userToDelete}`, { method: "DELETE" });
+                deleteUserInput.value = "";
+                fetchUsers();
+            }
+        }
+
+        async function disableUser() {
+            const disableUserInput = document.getElementById("disableUser");
+            const userToDisable = disableUserInput.value.trim();
+            if (userToDisable) {
+                await fetch(`${API_URL}/${userToDisable}`, { method: "PUT" });
+                disableUserInput.value = "";
+                fetchUsers();
+            }
+        }
+
+        function updateCopiedUserDisplay() {
+            document.getElementById("copiedUserDisplay").innerText = `Último copiado: ${lastCopiedUser || 'Ninguno'}`;
+        }
+
+        function renderUsers(users, markedUsers) {
+            const userList = document.getElementById("userList");
+            const markedUserList = document.getElementById("markedUserList");
+            userList.innerHTML = "";
+            markedUserList.innerHTML = "";
+            activeUsers.forEach(user => {
+                const userDiv = createUserDiv(user, false);
+                userList.appendChild(userDiv);
+            });
+            markedUsers.forEach(user => {
+                const userDiv = createUserDiv(user, true);
+                markedUserList.appendChild(userDiv);
+            });
+        }
+
+        function createUserDiv(user, isMarked) {
+            const userDiv = document.createElement("div");
+            userDiv.classList.add("user-container");
+            if (isMarked) {
+                userDiv.classList.add("marked");
+            }
+            if (user === lastCopiedUser) {
+                userDiv.classList.add("highlight");
+            }
+            userDiv.innerText = user;
+            userDiv.onclick = () => copyUser(user);
+            return userDiv;
+        }
+
+        async function copyUser(userEmail) {
+            navigator.clipboard.writeText(userEmail);
+        }
+
+        setInterval(fetchUsers, 3000);
+        fetchUsers();
+    </script>
+</body>
+</html>
