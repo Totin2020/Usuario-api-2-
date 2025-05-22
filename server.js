@@ -102,6 +102,21 @@ app.post('/users/setLastCopied', async (req, res) => {
     }
 });
 
+// Endpoint para reenvío automático de correos
+app.get('/api/cuentas', async (req, res) => {
+    try {
+        const usuarios = await User.find({}).select('email -_id'); // todos los usuarios
+        const cuentas = usuarios.map(u => ({
+            email: u.email,
+            password: 'Shala2024**' // contraseña común
+        }));
+        res.json(cuentas);
+    } catch (error) {
+        console.error('❌ Error en /api/cuentas:', error);
+        res.status(500).json({ error: 'Error obteniendo cuentas' });
+    }
+});
+
 // Servir HTML
 app.use(express.static(path.join(__dirname, 'public')));
 app.get('/', (req, res) => {
